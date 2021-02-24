@@ -1,0 +1,974 @@
+---
+title: "Data Breach"
+output:
+  html_document: default
+  pdf_document: default
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+```
+
+## Importing libraries
+
+```{r}
+#load packages
+library(ggplot2)
+library(gridExtra)
+library(dplyr)
+library(scales)
+library(MASS)
+library(reshape2)
+```
+
+## Loading data
+
+```{r}
+#load data
+df <- read.csv('data/data_breach.csv')
+head(df)
+```
+
+```{r}
+# subset of data breaches in US, excluing those ouside of US.
+df <- subset(df, region_A != 'Non_US')
+head(df)
+```
+
+
+## Extraordinary incidents
+
+```{r}
+# extraordinary incidents
+df_ext <- subset(df, records_group == 'Extraordinary')
+summary(df_ext)
+```
+
+- The 3 extraordinary incidents are from California, Oregon and Wisconsion. California and Oregon are located in the 'West' region, Wisconsion is located in the 'Midwest' region.  All these 3 states have a data breach related law for more than 12 years. 
+- The min total records is 1.000e+09, the max is 3.000e+09 and the mean is 1.370e+09. 
+- 2 of the 3 incidents are of type 'HACK', 1 of type 'DISC'; 2 of them are from outsider, 1 from insider; 2 are 'Online' and 1 is 'Others'. 
+- All the 3 incidents are from 'BSO' organization (business - others), which is not federal regulated. 
+
+## Checking information of dataset
+
+```{r}
+# subset of data breaches excluing the extraordinary incidents
+df <- subset(df, region_A != 'Extraordinary')
+head(df)
+```
+
+```{r}
+# check the dimention, column names and structure of the dataset
+dim(df)
+names(df)
+str(df)
+```
+
+The dataset has 5574 rows with 27 columns. The data type of age_of_Law is Factor, need to be converted to integer.
+
+```{r}
+# convert data type of age_of_Law from Factor to integer
+df$age_of_Law <-  as.numeric(as.character(df$age_of_Law))
+class(df$age_of_Law)
+```
+
+```{r}
+# description of the dataset
+summary(df)
+```
+
+## Univariate Exploration
+### type of breach
+
+```{r}
+# type of breach
+ggplot(df, aes(Type.of.breach)) + 
+  geom_bar(aes(y = (..count..)/sum(..count..))) + 
+  scale_y_continuous(labels=scales::percent) + 
+  ylab('Percentage')
+
+# chi-square test
+chisq.test(table(df$Type.of.breach))
+```
+
+'PHYS', 'DISC' and 'HACK' types (3 types out of 8) consist about 70% of the breach.
+ 
+### breach type group B
+
+```{r}
+# breach type group B
+ggplot(df) + 
+  geom_bar(mapping=aes(breach_type_gB,y=..prop.., group=1), stat = "count")
+
+# chi-square test
+chisq.test(table(df$breach_type_gB))
+```
+
+### breach type group C
+
+```{r}
+# breach type group C
+ggplot(df) + 
+  geom_bar(mapping=aes(breach_type_gC,y=..prop.., group=1), stat = "count")
+
+# chi-square test
+chisq.test(table(df$breach_type_gC))
+```
+
+### breach type group D
+
+```{r}
+# breach type group D
+ggplot(df) + 
+  geom_bar(mapping=aes(breach_type_gD,y=..prop.., group=1), stat = "count")
+
+# chi-square test
+chisq.test(table(df$breach_type_gD))
+```
+
+### Type.of.organization
+
+```{r}
+# Type.of.organization
+ggplot(df, aes(Type.of.organization)) + 
+  geom_bar(aes(y = (..count..)/sum(..count..))) + 
+  scale_y_continuous(labels=scales::percent) + 
+  ylab('Percentage')
+
+# chi-square test
+chisq.test(table(df$Type.of.organization))
+```
+
+More than 60% of the breach are from medical organization. 
+
+### organization group
+
+```{r}
+# org_group
+ggplot(df) + 
+  geom_bar(mapping=aes(org_group,y=..prop.., group=1), stat = "count")
+
+# chi-square test
+chisq.test(table(df$org_group))
+```
+
+### total records
+
+```{r}
+# Total Records
+summary(df$Total.Records)
+p1 <- qplot(x = Total.Records, data = df,
+            xlab = 'US Total Records', ylab = 'Count')
+p2 <- qplot(x = Total.Records, data = df, 
+            xlab = 'US Total Records (log10)', ylab = 'Count') +
+  scale_x_log10() 
+# p3 <- qplot(x = Total.Records, data = subset(df, State == 'California'), xlab = 'CA Total Records(log10)', ylab = 'Count') +
+# scale_x_log10()
+grid.arrange(p1, p2, ncol = 1)
+
+```
+
+The distribution of total records is heavily right skewed. After log tranformation, it looks like normal distribution with a mean at 1000. 
+
+### incidents
+
+```{r}
+# frequency polygon of incidents by year
+ggplot() + 
+  geom_freqpoly(aes(Year.of.Breach), data = df, color = 'blue', 
+                stat = 'count') +
+  geom_freqpoly(aes(Year.of.Breach), data = subset(df, State == 'California'),
+                color = 'red', stat = 'count') + 
+  scale_x_continuous(breaks = seq(2006, 2017, 1))
+
+# chi-square test
+chisq.test(table(df$Year.of.Breach))  
+```
+
+```{r}
+# density plot of incidents by year
+names(df)
+ggplot() + 
+  geom_density(aes(Year.of.Breach), data = df, color = 'blue') +
+  geom_density(aes(Year.of.Breach), data = subset(df, State == 'California'), 
+               color = 'red') +
+  scale_x_continuous(breaks = seq(2006, 2017, 1))
+```
+
+### region B
+
+```{r}
+# region B
+ggplot(df, aes(region_B)) + 
+  geom_bar(aes(y = (..count..)/sum(..count..))) + 
+  scale_y_continuous(labels=scales::percent) + 
+  ylab('Percentage')
+
+# chi-square test
+chisq.test(table(df$region_B))
+```
+
+Southwest, which includes 'Texas', 'Oklahoma', 'New Mexico', 'Arizona', has relatively less data breach events than other regions. 
+
+### age of law
+
+```{r}
+# age of law
+qplot(x = age_of_Law, data = df,
+            xlab = 'Age of Law', ylab = 'Count')
+
+```
+
+### severity index 1
+
+```{r}
+# severity index 1
+
+ggplot(df, aes(x=severity_index1)) + geom_histogram()
+```
+
+This distribution of severity index 1 is a little left skewed. The peak appears at 17.
+
+### severity index 2
+
+```{r}
+# severity index 2
+
+ggplot(df, aes(x=severity_index2)) + geom_histogram()
+```
+
+This distribution of severity index 2 is a heavily left skewed. The peak appears at 20.
+
+### severity index 3
+
+```{r}
+# severity index 3
+
+ggplot(df, aes(x=severity_index3)) + geom_histogram()
+```
+
+### severity index 4
+
+```{r}
+# severity index 4
+
+ggplot(df, aes(x=severity_index4)) + geom_histogram()
+```
+
+### severity index 5
+
+```{r}
+# severity index 5
+
+ggplot(df, aes(x=severity_index5)) + geom_histogram()
+```
+
+## Bivariate exploration & multivariate exploration
+
+### type over time
+
+```{r}
+df %>%
+  count(Year.of.Breach, Type.of.breach) %>% 
+  ggplot(aes(Year.of.Breach, n, group = Type.of.breach, color = Type.of.breach)) +
+    geom_line() + 
+  scale_x_continuous(breaks = seq(2006, 2017, 2)) +
+  xlab('Year of breach') + 
+  ylab('Count')
+```
+
+All types have some flutuations, breach of 'HACK' and 'DISC' type are increasing over the years and have more incidents. The other types are decreasing and have less incidents. Organizations more vulnerable to 'HACK' and 'DISC' need to pay more attention. In the following part, we will explore which organizations are more vulnerable to 'HACK' and 'DISC'.
+
+### type group B over time
+
+```{r}
+df %>%
+  count(Year.of.Breach, breach_type_gB) %>% 
+  ggplot(aes(Year.of.Breach, n, group = breach_type_gB, color = breach_type_gB)) +
+    geom_line() + 
+  scale_x_continuous(breaks = seq(2006, 2017, 2)) +
+xlab('Year of breach') + 
+  ylab('Count')
+```
+
+Breaches caused by outsiders have been increasing during these years, while breaches caused by insiders have not been increasing too much since year 2013.
+
+### difference between insider and outsider over time
+
+```{r}
+io_df <- df %>%
+  subset(breach_type_gB %in% c('Insider', 'Outsider')) %>%
+  count(Year.of.Breach, breach_type_gB) %>%
+  data.frame() %>%
+  reshape(idvar = "Year.of.Breach", timevar = 'breach_type_gB', direction = "wide")
+
+io_df$diff <- io_df$n.Outsider - io_df$n.Insider
+ggplot(data = io_df, aes(x = Year.of.Breach, y = diff)) + 
+  geom_line() + 
+  scale_x_continuous(breaks = seq(2006, 2017, 2)) +
+xlab('Year of breach') + 
+  ylab('Count')
+```
+
+### type group C over time
+
+```{r}
+df %>%
+  count(Year.of.Breach, breach_type_gC) %>% 
+  ggplot(aes(Year.of.Breach, n, group = breach_type_gC, color = breach_type_gC)) +
+    geom_line() + 
+  scale_x_continuous(breaks = seq(2006, 2017, 2)) +
+xlab('Year of breach') + 
+  ylab('Count')
+```
+
+
+
+Breaches from offline have been dramatically decresing since year 2010. Breaches from online have been increasing.
+
+### type group D over time
+
+```{r}
+df %>%
+  count(Year.of.Breach, breach_type_gD) %>% 
+  ggplot(aes(Year.of.Breach, n, group = breach_type_gD, color = breach_type_gD)) +
+    geom_line() + 
+  scale_x_continuous(breaks = seq(2006, 2017, 2)) +
+xlab('Year of breach') + 
+  ylab('Count')
+```
+
+
+Breaches from network have been increasing while breaches from local have been decreasing.
+
+### organizations vulnerable to 'HACK' and 'DISC'.
+
+```{r}
+# organizations vulnerable to 'HACK' and 'DISC'
+subset(df, Type.of.breach %in% c('HACK', 'DISC')) %>%
+      ggplot(aes(Type.of.organization)) + 
+  geom_bar(aes(y = (..count..)/sum(..count..))) + 
+  scale_y_continuous(labels=scales::percent) + 
+  xlab('Type of organization') + 
+  ylab('Percentage')   
+```
+
+
+```{r}
+# organizations vulnerable to 'HACK'
+subset(df, Type.of.breach=='HACK') %>%
+      ggplot(aes(Type.of.organization)) + 
+  geom_bar(aes(y = (..count..)/sum(..count..))) + 
+  scale_y_continuous(labels=scales::percent) + 
+  xlab('Type of organization') + 
+  ylab('Percentage')   
+```
+
+```{r}
+# organizations vulnerable to 'DISC'
+subset(df, Type.of.breach=='DISC') %>%
+      ggplot(aes(Type.of.organization)) + 
+  geom_bar(aes(y = (..count..)/sum(..count..))) + 
+  scale_y_continuous(labels=scales::percent) + 
+  xlab('Type of organization') + 
+  ylab('Percentage')    
+```
+
+```{r}
+# org vs type
+ggplot(df, aes(Type.of.organization, fill =Type.of.breach )) + 
+  geom_bar(aes(y = (..count..)/sum(..count..))) + 
+  scale_y_continuous(labels=scales::percent) + 
+  xlab('Type of organization') + 
+  ylab('Percentage') 
+```
+
+More than 50% of the incidents for 'BSO', 'BSR', 'EDU' are of type 'HACK' and 'DISC'.
+
+### organization over time
+
+```{r}
+df %>%
+  count(Year.of.Breach, Type.of.organization) %>% 
+  ggplot(aes(Year.of.Breach, n, group = Type.of.organization, color = Type.of.organization)) +
+    geom_line() + 
+  scale_x_continuous(breaks = seq(2006, 2017, 2)) + 
+  xlab('Year of breach') + 
+  ylab('Count')
+```
+
+Breach in medical is dramatically increasing especially after year 2009. Breach in 'BSO' reached its peak in year 2011, it has been decreasing through year 2015 but starts to rebound after that. 
+
+So medical and 'BSO' need to pay relatively more attention to data breach. 
+
+### organization group over time
+
+```{r}
+df %>%
+  count(Year.of.Breach, org_group) %>% 
+  ggplot(aes(Year.of.Breach, n, group = org_group, color = org_group)) +
+    geom_line() + 
+  scale_x_continuous(breaks = seq(2006, 2017, 2)) + 
+  xlab('Year of breach') + 
+  ylab('Count')
+```
+
+Although there are some fluctuations. For the overall trend, breaches in federal regulated organizations are increasing, breaches in non federal regulated organizations are decreasing.
+
+### organization vs. type vs. incidents
+
+```{r}
+# heat map filled with incidents indensity
+df %>%
+  group_by(Type.of.organization, Type.of.breach) %>%
+  summarise( n = n()) %>%
+  mutate(incidents_indensity = n / sum(n)) %>%
+  ggplot(aes(Type.of.organization, Type.of.breach)) +
+  geom_tile(aes(fill = incidents_indensity)) +
+  geom_text(aes(label = round(incidents_indensity,2))) +
+  scale_fill_continuous(low = "white", high = "black")
+
+# Chi-Square Test of Independence
+chisq.test(table(df$Type.of.organization, df$Type.of.breach))
+```
+
+'BSF' is more prone to 'HACK' and 'PORT'. 'BSO' and 'BSR' are more prone to 'HACK'. 'EDU' is more prone to 'DISC' and 'HACK'. 'GOV' is more prone to 'PORT'. 'MED' is more prone to 'PHYS'. 'NGO' is more prone to 'PORT' and 'HACK'.
+
+### organization vs. type vs. records
+
+```{r}
+# heat map filled with records indensity
+df %>%
+  group_by(Type.of.organization, Type.of.breach) %>%
+  summarise(total_records = sum(Total.Records)) %>%
+  mutate(records_indensity = total_records / sum(total_records)) %>%
+  ggplot(aes(Type.of.organization, Type.of.breach)) +
+  geom_tile(aes(fill = records_indensity)) +
+  geom_text(aes(label = round(records_indensity,2))) +
+  scale_fill_continuous(low = "white", high = "black")
+```
+
+### severity_index1 over time
+
+```{r}
+aggregate(df$severity_index1, list(df$Year.of.Breach), mean) %>%
+  ggplot(aes(Group.1, x)) +
+   geom_line() + 
+  scale_x_continuous(breaks = seq(2006, 2017, 2)) +
+  xlab('Year of breach') +
+  ylab('Average severity index 1')
+  
+```
+
+### severity_index2 over time
+
+```{r}
+aggregate(df$severity_index2, list(df$Year.of.Breach), mean) %>%
+  ggplot(aes(Group.1, x)) +
+   geom_line() + 
+  scale_x_continuous(breaks = seq(2006, 2017, 2)) +
+  xlab('Year of breach') +
+  ylab('Average severity index 2')
+  
+```
+
+### severity_index3 over time
+
+```{r}
+aggregate(df$severity_index3, list(df$Year.of.Breach), mean) %>%
+  ggplot(aes(Group.1, x)) +
+   geom_line() + 
+  scale_x_continuous(breaks = seq(2006, 2017, 2)) +
+  xlab('Year of breach') +
+  ylab('Average severity index 3')
+  
+```
+
+### severity_index4 over time
+
+```{r}
+aggregate(df$severity_index4, list(df$Year.of.Breach), mean) %>%
+  ggplot(aes(Group.1, x)) +
+   geom_line() + 
+  scale_x_continuous(breaks = seq(2006, 2017, 2)) +
+  xlab('Year of breach') +
+  ylab('Average severity index 4')
+  
+```
+
+### severity_index5 over time
+
+```{r}
+aggregate(df$severity_index5, list(df$Year.of.Breach), mean) %>%
+  ggplot(aes(Group.1, x)) +
+   geom_line() + 
+  scale_x_continuous(breaks = seq(2006, 2017, 2)) +
+  xlab('Year of breach') +
+  ylab('Average severity index 5')
+  
+```
+
+### all severity indexes over time
+
+```{r}
+mean_index <- aggregate(df[, 26:30], list(df$Year.of.Breach), mean)
+
+melt_mean_index <- melt(mean_index, id.vars="Group.1")
+
+ggplot(melt_mean_index, aes(Group.1, value, col=variable)) + 
+  geom_line() + 
+  scale_x_continuous(breaks = seq(2006, 2017, 2)) +
+  xlab('Year of breach') +
+  ylab('Average severity index')
+  
+```
+
+### organization vs. type vs. severity_index1
+
+```{r}
+# heat map filled with severity_index1
+df %>%
+  group_by(Type.of.organization, Type.of.breach) %>%
+  summarise(severity_index = sum(severity_index1)) %>%
+  mutate(severity_index_indensity = severity_index / sum(severity_index)) %>%
+  ggplot(aes(Type.of.organization, Type.of.breach)) +
+  geom_tile(aes(fill = severity_index_indensity)) +
+  geom_text(aes(label = round(severity_index_indensity,2))) +
+  scale_fill_continuous(low = "white", high = "black")
+```
+
+In consideration of severity_index1:
+- BSF need to pay more attention to PORT and HACK
+- BSO/BSR/EDU need to pay more attention to HACK
+- GOV need to pay more attention to PORT and DISC
+- MED need to pay more attention to PHYS and HACK
+- NGO need to pay more attention to PORT and HACK
+
+### organization vs. type vs. severity_index2
+
+```{r}
+# heat map filled with severity_index2
+df %>%
+  group_by(Type.of.organization, Type.of.breach) %>%
+  summarise(severity_index = sum(severity_index2)) %>%
+  mutate(severity_index_indensity = severity_index / sum(severity_index)) %>%
+  ggplot(aes(Type.of.organization, Type.of.breach)) +
+  geom_tile(aes(fill = severity_index_indensity)) +
+  geom_text(aes(label = round(severity_index_indensity,2))) +
+  scale_fill_continuous(low = "white", high = "black")
+```
+
+In terms of severity_index2:
+- BSF need to pay more attention to PORT and HACK
+- BSO/BSR need to pay more attention to HACK
+- EDU need to pay more attention to HACK and DISC (diff)
+- GOV need to pay more attention to PORT and DISC
+- MED need to pay more attention to PHYS (diff)
+- NGO need to pay more attention to PORT and HACK
+
+### organization vs. type vs. severity_index3
+
+```{r}
+# heat map filled with severity_index3
+df %>%
+  group_by(Type.of.organization, Type.of.breach) %>%
+  summarise(severity_index = sum(severity_index3)) %>%
+  mutate(severity_index_indensity = severity_index / sum(severity_index)) %>%
+  ggplot(aes(Type.of.organization, Type.of.breach)) +
+  geom_tile(aes(fill = severity_index_indensity)) +
+  geom_text(aes(label = round(severity_index_indensity,2))) +
+  scale_fill_continuous(low = "white", high = "black")
+```
+
+In terms of severity_index2:
+- BSF need to pay more attention to PORT and HACK
+- BSO/BSR need to pay more attention to HACK
+- EDU need to pay more attention to HACK and DISC
+- GOV need to pay more attention to PORT and DISC
+- MED need to pay more attention to PHYS 
+- NGO need to pay more attention to PORT and HACK
+
+### organization vs. type vs. severity_index4
+
+```{r}
+# heat map filled with severity_index4
+df %>%
+  group_by(Type.of.organization, Type.of.breach) %>%
+  summarise(severity_index = sum(severity_index4)) %>%
+  mutate(severity_index_indensity = severity_index / sum(severity_index)) %>%
+  ggplot(aes(Type.of.organization, Type.of.breach)) +
+  geom_tile(aes(fill = severity_index_indensity)) +
+  geom_text(aes(label = round(severity_index_indensity,2))) +
+  scale_fill_continuous(low = "white", high = "black")
+```
+
+### organization vs. type vs. severity_index5
+
+```{r}
+# heat map filled with severity_index5
+df %>%
+  group_by(Type.of.organization, Type.of.breach) %>%
+  summarise(severity_index = sum(severity_index5)) %>%
+  mutate(severity_index_indensity = severity_index / sum(severity_index)) %>%
+  ggplot(aes(Type.of.organization, Type.of.breach)) +
+  geom_tile(aes(fill = severity_index_indensity)) +
+  geom_text(aes(label = round(severity_index_indensity,2))) +
+  scale_fill_continuous(low = "white", high = "black")
+```
+
+### State vs. severity_index1
+
+```{r}
+# State vs. severity_index1
+state_index <- df %>%
+  group_by(State) %>%
+  summarise(mean = mean(severity_index1))
+# sort by descending order
+state_index[order(-state_index$mean), ]
+```
+
+### Type.of.breach vs. severity_index1
+
+```{r}
+# Type.of.breach vs. severity_index1
+ggplot(data=df, aes(x = Type.of.breach, y = severity_index1)) +
+  geom_boxplot()
+```
+
+### breach_type_gB vs. severity_index1
+
+```{r}
+# breach_type_gB vs. severity_index1
+ggplot(data=df, aes(x = breach_type_gB, y = severity_index1)) +
+  geom_boxplot()
+```
+
+### breach_type_gC vs. severity_index1
+
+```{r}
+# breach_type_gC vs. severity_index1
+ggplot(data=df, aes(x = breach_type_gC, y = severity_index1)) +
+  geom_boxplot()
+```
+
+### Type.of.organization vs. severity_index1
+
+```{r}
+# Type.of.organization vs. severity_index1
+ggplot(data=df, aes(x = Type.of.organization, y = severity_index1)) +
+  geom_boxplot()
+```
+
+### org_group vs. severity_index1
+
+```{r}
+# org_group vs. severity_index1
+ggplot(data=df, aes(x = org_group, y = severity_index1)) +
+  geom_boxplot()
+```
+
+### region_B vs. severity_index1
+
+```{r}
+# region_B vs. severity_index1
+ggplot(data=df, aes(x = region_B, y = severity_index1)) +
+  geom_boxplot()
+```
+
+### age_of_Law vs. severity_index1
+
+```{r}
+# age_of_Law vs. severity_index1
+
+ggplot(aes(x = age_of_Law, y = severity_index1), data = df) +
+  geom_point(alpha = 0.5)
+
+# correlation test
+cor.test(df$age_of_Law, df$severity_index2)
+```
+
+### State vs. severity_index2
+
+```{r}
+# State vs. severity_index2
+state_index <- df %>%
+  group_by(State) %>%
+  summarise(mean = mean(severity_index2))
+# sort by descending order
+state_index[order(-state_index$mean), ]
+```
+
+### Type.of.breach vs. severity_index2
+
+```{r}
+# Type.of.breach vs. severity_index2
+ggplot(data=df, aes(x = Type.of.breach, y = severity_index2)) +
+  geom_boxplot()
+```
+
+### breach_type_gB vs. severity_index2
+
+```{r}
+# breach_type_gB vs. severity_index2
+ggplot(data=df, aes(x = breach_type_gB, y = severity_index2)) +
+  geom_boxplot()
+```
+
+### breach_type_gC vs. severity_index2
+
+```{r}
+# breach_type_gC vs. severity_index2
+ggplot(data=df, aes(x = breach_type_gC, y = severity_index2)) +
+  geom_boxplot()
+```
+
+### Type.of.organization vs. severity_index2
+
+```{r}
+# Type.of.organization vs. severity_index2
+ggplot(data=df, aes(x = Type.of.organization, y = severity_index2)) +
+  geom_boxplot()
+```
+
+### org_group vs. severity_index2
+
+```{r}
+# org_group vs. severity_index2
+ggplot(data=df, aes(x = org_group, y = severity_index2)) +
+  geom_boxplot()
+```
+
+### region_B vs. severity_index2
+
+```{r}
+# region_B vs. severity_index2
+ggplot(data=df, aes(x = region_B, y = severity_index2)) +
+  geom_boxplot()
+```
+
+### age_of_Law vs. severity_index2
+
+```{r}
+# age_of_Law vs. severity_index2
+
+ggplot(aes(x = age_of_Law, y = severity_index2), data = df) +
+  geom_point(alpha = 0.5)
+
+# correlation test
+cor.test(df$age_of_Law, df$severity_index2)
+```
+
+### State vs. severity_index3
+
+```{r}
+# State vs. severity_index3
+state_index <- df %>%
+  group_by(State) %>%
+  summarise(mean = mean(severity_index3))
+# sort by descending order
+state_index[order(-state_index$mean), ]
+```
+
+### Type.of.breach vs. severity_index3
+
+```{r}
+# Type.of.breach vs. severity_index3
+ggplot(data=df, aes(x = Type.of.breach, y = severity_index3)) +
+  geom_boxplot()
+```
+
+### breach_type_gB vs. severity_index3
+
+```{r}
+# breach_type_gB vs. severity_index3
+ggplot(data=df, aes(x = breach_type_gB, y = severity_index3)) +
+  geom_boxplot()
+```
+
+### breach_type_gC vs. severity_index3
+
+```{r}
+# breach_type_gC vs. severity_index3
+ggplot(data=df, aes(x = breach_type_gC, y = severity_index3)) +
+  geom_boxplot()
+```
+
+### Type.of.organization vs. severity_index3
+
+```{r}
+# Type.of.organization vs. severity_index3
+ggplot(data=df, aes(x = Type.of.organization, y = severity_index3)) +
+  geom_boxplot()
+```
+
+### org_group vs. severity_index3
+
+```{r}
+# org_group vs. severity_index3
+ggplot(data=df, aes(x = org_group, y = severity_index3)) +
+  geom_boxplot()
+```
+
+### region_B vs. severity_index3
+
+```{r}
+# region_B vs. severity_index3
+ggplot(data=df, aes(x = region_B, y = severity_index3)) +
+  geom_boxplot()
+```
+
+### age_of_Law vs. severity_index3
+
+```{r}
+# age_of_Law vs. severity_index3
+
+ggplot(aes(x = age_of_Law, y = severity_index3), data = df) +
+  geom_point(alpha = 0.5)
+
+# correlation test
+cor.test(df$age_of_Law, df$severity_index3)
+```
+
+### State vs. severity_index4
+
+```{r}
+# State vs. severity_index4
+state_index <- df %>%
+  group_by(State) %>%
+  summarise(mean = mean(severity_index4))
+# sort by descending order
+state_index[order(-state_index$mean), ]
+```
+
+### Type.of.breach vs. severity_index4
+
+```{r}
+# Type.of.breach vs. severity_index4
+ggplot(data=df, aes(x = Type.of.breach, y = severity_index4)) +
+  geom_boxplot()
+```
+
+### breach_type_gB vs. severity_index4
+
+```{r}
+# breach_type_gB vs. severity_index4
+ggplot(data=df, aes(x = breach_type_gB, y = severity_index4)) +
+  geom_boxplot()
+```
+
+### breach_type_gC vs. severity_index4
+
+```{r}
+# breach_type_gC vs. severity_index4
+ggplot(data=df, aes(x = breach_type_gC, y = severity_index4)) +
+  geom_boxplot()
+```
+
+### Type.of.organization vs. severity_index4
+
+```{r}
+# Type.of.organization vs. severity_index4
+ggplot(data=df, aes(x = Type.of.organization, y = severity_index4)) +
+  geom_boxplot()
+```
+
+### org_group vs. severity_index4
+
+```{r}
+# org_group vs. severity_index4
+ggplot(data=df, aes(x = org_group, y = severity_index4)) +
+  geom_boxplot()
+```
+
+### region_B vs. severity_index4
+
+```{r}
+# region_B vs. severity_index4
+ggplot(data=df, aes(x = region_B, y = severity_index4)) +
+  geom_boxplot()
+```
+
+### age_of_Law vs. severity_index4
+
+```{r}
+# age_of_Law vs. severity_index4
+
+ggplot(aes(x = age_of_Law, y = severity_index4), data = df) +
+  geom_point(alpha = 0.5)
+
+# correlation test
+cor.test(df$age_of_Law, df$severity_index4)
+```
+
+### State vs. severity_index5
+
+```{r}
+# State vs. severity_index5
+state_index <- df %>%
+  group_by(State) %>%
+  summarise(mean = mean(severity_index5))
+# sort by descending order
+state_index[order(-state_index$mean), ]
+```
+
+### Type.of.breach vs. severity_index5
+
+```{r}
+# Type.of.breach vs. severity_index5
+ggplot(data=df, aes(x = Type.of.breach, y = severity_index5)) +
+  geom_boxplot()
+```
+
+### breach_type_gB vs. severity_index5
+
+```{r}
+# breach_type_gB vs. severity_index5
+ggplot(data=df, aes(x = breach_type_gB, y = severity_index5)) +
+  geom_boxplot()
+```
+
+### breach_type_gC vs. severity_index5
+
+```{r}
+# breach_type_gC vs. severity_index5
+ggplot(data=df, aes(x = breach_type_gC, y = severity_index5)) +
+  geom_boxplot()
+```
+
+### Type.of.organization vs. severity_index5
+
+```{r}
+# Type.of.organization vs. severity_index5
+ggplot(data=df, aes(x = Type.of.organization, y = severity_index5)) +
+  geom_boxplot()
+```
+
+### org_group vs. severity_index5
+
+```{r}
+# org_group vs. severity_index5
+ggplot(data=df, aes(x = org_group, y = severity_index5)) +
+  geom_boxplot()
+```
+
+### region_B vs. severity_index5
+
+```{r}
+# region_B vs. severity_index5
+ggplot(data=df, aes(x = region_B, y = severity_index5)) +
+  geom_boxplot()
+```
+
+### age_of_Law vs. severity_index5
+
+```{r}
+# age_of_Law vs. severity_index5
+
+ggplot(aes(x = age_of_Law, y = severity_index5), data = df) +
+  geom_point(alpha = 0.5)
+
+# correlation test
+cor.test(df$age_of_Law, df$severity_index5)
+```
